@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<meta charset="utf-8" />
+<style>
+  .links line {
+    stroke: #999;
+    stroke-opacity: 0.6;
+  }
+
+  .nodes circle {
+    stroke: #fff;
+    stroke-width: 1.5px;
+  }
+
+  text {
+    pointer-events: none;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 14px;
+  }
+</style>
+<h1>Word Network</h1>
+<p>
+  A node represents a word. An edge implies that two words are significantly (*)
+  used together. The colour of any node represent the average mood for a given
+  word when used in conjuction with its connected words.
+  <ul style="list-style-type: square type number;">
+    <li>
+      blue: sad
+    </li>
+    <li>
+      light blue: meh
+    </li>
+    <li>
+      aqua: okay
+    </li>
+    <li>
+      green: great
+    </li>
+    <li>
+      dark green: rad
+    </li>
+  </ul>
+</p>
+<p id="weight">Hover over a node or edge!</p>
+<p id="edge_count">(*) For an edge to be considered significant, it must form part of the top N edges being shown below...</p>
+<svg width="1024" height="500"></svg>
+<script src="https://d3js.org/d3.v5.min.js"></script>
+<script type="text/javascript" src="network.json"></script>
+<script>
+  //initilize svg or grab svg
+  var svg = d3.select("svg");
+  var width = svg.attr("width");
+  var height = svg.attr("height");
+  var size_multiplier = 2;
+
+  //intialize data
+  var graph = JSON.parse('{{ data | tojson | safe }}');
+  document.getElementById("edge_count").innerHTML = "(*) For an edge to be considered significant, it must form part of the top " + graph.links.length + " edges being shown below...";
+
+  // loadNetwork();
+  //loadMockNetwork()
+
+  var linked = {};
+
+  graph.links.forEach(function (d) {
+    linked[d.source + "_" + d.target] = 1;
+  });
+
+  function isConnected(a, b) {
+    return (
+      linked[a.name + "_" + b.name] ||
+      linked[b.name + "_" + a.name] ||
+      a.name == b.name
+    );
+  }
+
+  function partOfLink(l, n) {
+    return l.source.name == n.name || l.target.name == n.name;
+  }
+
+  function fade_node(d, opacity) {
+    node.style("opacity", function (o) {
+      thisOpacity = isConnected(d, o) ? 1 : opacity;
+      return thisOpacity;
+    });
+    link.style("stroke-opacity", function (o) {
+      return o.source.name === d.name || o.target.name === d.name ? 1 : opacity;
+    });
+    text.style("fill-opacity", function (o) {
+      thisOpacity = isConnected(d, o) ? 1 : opacity;
+      return thisOpacity;
+    });
+  }
+
+  function fade_link(d, opacity) {
+    node.style("opacity", function (o) {
+      thisOpacity = partOfLink(d, o) ? 1 : opacity;
+      return thisOpacity;
+    });
+    link.style("stroke-opacity", function (o) {
+      return o.source.name === d.source.name && o.target.name === d.target.name
+        ? 1
+        : opacity;
+    });
+    text.style("fill-opacity", function (o) {
+      thisOpacity = partOfLink(d, o) ? 1 : opacity;
+      return thisOpacity;
+    });
+  }
+
+  function classify_colour(mood_number) {
+    mood_number = Math.round(mood_number);
+
+    switch (mood_number) {
+      case 0:
+        return "rgb(0, 150, 255)";
+      case 1:
+        return "rgb(0, 200, 200)";
+      case 2:
+        return "rgb(0, 200, 150)";
+      case 3:
+        return "rgb(0, 255, 0)";
+      case 4:
+        return "rgb(0, 180, 0)";
+    }
+  }
+
+  var simulation = d3
+    .forceSimulation(graph.nodes)
+    .force(
+      "link",
+      d3
+        .forceLink()
+        .id(function (d) {
+          return d.name;
+        })
+        .links(graph.links)
+    )
+
+    .force("charge", d3.forceManyBody().strength(-500))
+    .force("center", d3.forceCenter(width / 2, height / 2))
+    .on("tick", ticked);
+
+  var link = svg
+    .append("g")
+    .attr("class", "links")
+    .selectAll("line")
+    .data(graph.links)
+    .enter()
+    .append("line")
+    .style("stroke-opacity", 1)
+    .attr("stroke-width", function (d) {
+      return Math.sqrt(d.weight);
+    })
+    .on("mouseover", function (d) {
+      fade_link(d, 0.2);
+      d3.select(this).transition().duration(300).attr("fill", "orange");
+      document.getElementById("weight").innerHTML = "Hover over a node or edge! [Weight: " + d.weight + "]";
+    })
+    .on("mouseout", function (d) {
+      fade_link(d, 1);
+      d3.select(this).transition().duration(300).attr("fill", "red");
+      document.getElementById("weight").innerHTML = "Hover over a node or edge!";
+    });
+
+  var node = svg
+    .append("g")
+    .attr("class", "nodes")
+    .selectAll("circle")
+    .data(graph.nodes)
+    .enter()
+    .append("circle")
+    .attr("r", function (d) {
+      return size_multiplier * Math.sqrt(d.weight);
+    })
+    .attr("fill", function (d) {
+      return classify_colour(d.mood);
+    })
+    .call(
+      d3
+        .drag()
+        .on("start", dragstarted)
+        .on("drag", dragged)
+        .on("end", dragended)
+    )
+    .on("mouseover", function (d) {
+      if (!d3.event.active) {
+        fade_node(d, 0.2);
+        d3.select(this)
+          .transition()
+          .duration(300)
+          .attr("r", size_multiplier * Math.sqrt(d.weight) + 4);
+        document.getElementById("weight").innerHTML = "Hover over a node or edge! [Weight: " + d.weight + ", Average Mood: " + Math.round(d.avg_mood * 100) / 100 + "]";
+      }
+    })
+    .on("mouseout", function (d) {
+      if (!d3.event.active) {
+        fade_node(d, 1);
+        d3.select(this)
+          .transition()
+          .duration(300)
+          .attr("r", size_multiplier * Math.sqrt(d.weight));
+        document.getElementById("weight").innerHTML = "Hover over a node or edge!";
+      }
+    });
+
+  var text = svg
+    .append("g")
+    .selectAll("text")
+    .data(graph.nodes)
+    .enter()
+    .append("text")
+    .attr("x", 0)
+    .attr("dy", ".25em")
+    .attr("text-anchor", "middle")
+    .text((d) => d.name);
+
+  function ticked() {
+    link
+      .attr("x1", function (d) {
+        return d.source.x;
+      })
+      .attr("y1", function (d) {
+        return d.source.y;
+      })
+      .attr("x2", function (d) {
+        return d.target.x;
+      })
+      .attr("y2", function (d) {
+        return d.target.y;
+      });
+      
+    node
+      .attr("cx", function (d) {
+        radius = size_multiplier * Math.sqrt(d.weight);
+        return (d.x = Math.max(radius, Math.min(width - radius, d.x)));
+      })
+      .attr("cy", function (d) {
+        radius = size_multiplier * Math.sqrt(d.weight);
+        return (d.y = Math.max(radius, Math.min(height - radius, d.y)));
+      });
+
+    text.attr("x", (d) => d.x);
+    text.attr("y", (d) => d.y);
+
+    
+
+     
+    }
+
+  function dragstarted(d) {
+    if (!d3.event.active) simulation.alphaTarget(0.3).restart();
+    d.fx = d.x;
+    d.fy = d.y;
+  }
+
+  function dragged(d) {
+    d.fx = d3.event.x;
+    d.fy = d3.event.y;
+  }
+
+  function dragended(d) {
+    if (!d3.event.active) simulation.alphaTarget(0);
+    d.fx = null;
+    d.fy = null;
+  }
+</script>

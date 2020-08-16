@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<style>
+  .textbox{
+    margin: 10px;
+    background-color: beige;
+  }
+
+</style>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <h1>
+      Dailyo Word Network
+    </h1>
+    <p>
+      Upload your dailyo entries in CSV format as to build your word network in a 'force-directed graph'.
+      A node represents a word. An edge between two noddes implies that two words are significantly (*)
+      used together. The colour of any node represent the average mood for a given
+      word when used in conjuction with its connected words. Stop-words can also be filtered out.
+    <form
+      action="http://localhost:5000/upload"
+      method="POST"
+      enctype="multipart/form-data"
+    >
+      <div class="textbox">
+        <p>Upload your dailyo entries (CSV format): </p>
+        <input type="file" name="file" />
+      </div>
+      <div class="textbox">
+        <p>(*) Show only the top N most-weighted edges: </p>
+        <input type="text" name="edge_count" value='100'/>
+        <p>[Increasing the number of edges makes your word network more complicated]</p>
+      </div class="textbox">
+      <div class="textbox">
+        <p>Filter out stop-words in your language/s [hold down CTRL to select multiple languages]: </p>
+        <select name="langs" multiple>
+          <option value="Maltese">Maltese</option>
+          <option value="English">English</option>
+        </select>
+      </div>
+      <div class="textbox" style="background-color: white;">
+        <input type="submit" />
+      </div>
+    </form>
+  </body>
+</html>
